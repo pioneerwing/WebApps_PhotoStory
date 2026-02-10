@@ -1,0 +1,384 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  role      Role     @default(USER)
+  status    UserStatus @default(ACTIVE)
+  tokenVersion Int    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  comments  Comment[]
+  articles  Article[]
+  groups    UserGroup[]
+  pushSubscriptions PushSubscription[]
+  photoComments PhotoComment[]
+  photoEssays   PhotoEssay[]
+  photoCommentReports PhotoCommentReport[]
+  photoEssayReports   PhotoEssayReport[]
+  appComments AppComment[]
+}
+
+model Article {
+  id          String   @id
+  title       String
+  summary     String
+  topic       String
+  category    String
+  readingTime String
+  publishedAt String
+  published   Boolean  @default(false)
+  workflowStatus ArticleWorkflowStatus @default(DRAFT)
+  highlight   Boolean  @default(false)
+  coverImage  String?
+  body        Json
+  tags        String[] @default([])
+  meta        Json?
+  visibilityMode ContentVisibilityMode @default(INHERIT)
+  visibility     ContentVisibility     @default(PUBLIC)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  comments    Comment[]
+  authorId    String?
+  author      User?    @relation(fields: [authorId], references: [id])
+  allowedGroups ArticleGroup[]
+
+  @@index([topic])
+  @@index([topic, category])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  status    CommentStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  articleId String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum CommentStatus {
+  PENDING
+  APPROVED
+  SPAM
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  USER
+}
+
+enum ArticleWorkflowStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+}
+
+model Media {
+  id           String   @id @default(uuid())
+  filename     String
+  originalName String?
+  url          String
+  mimetype     String
+  size         Int
+  visibilityMode ContentVisibilityMode @default(INHERIT)
+  visibility     ContentVisibility     @default(PUBLIC)
+  createdAt    DateTime @default(now())
+  allowedGroups MediaGroup[]
+  photoPosts   PhotoPost[]
+}
+
+model Page {
+  id          String   @id
+  title       String
+  summary     String?
+  content     String
+  type        PageType @default(STANDARD)
+  published   Boolean  @default(false)
+  visibilityMode ContentVisibilityMode @default(INHERIT)
+  visibility     ContentVisibility     @default(PUBLIC)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  allowedGroups PageGroup[]
+}
+
+enum PageType {
+  BLANK
+  STANDARD
+}
+
+model PluginSetting {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  enabled   Boolean  @default(true)
+  config    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DailyReport {
+  id          String       @id @default(uuid())
+  reportDate  DateTime     @unique
+  metrics     Json         // Quantitative data (Indices, Rates, etc.)
+  analysis    Json         // AI generated analysis sections
+  status      ReportStatus @default(DRAFT)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  appComments AppComment[]
+}
+
+enum ReportStatus {
+  DRAFT
+  PUBLISHED
+  FAILED
+}
+
+model AppComment {
+  id            String        @id @default(uuid())
+  content       String
+  status        CommentStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  appInstanceId String
+  appInstance   AppInstance   @relation(fields: [appInstanceId], references: [id], onDelete: Cascade)
+
+  reportId      String?
+  report        DailyReport?  @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([appInstanceId])
+  @@index([reportId])
+  @@index([createdAt])
+}
+
+enum ContentVisibility {
+  PUBLIC
+  GUEST_ONLY
+  MEMBER_ONLY
+  GROUP_ONLY
+}
+
+enum ContentVisibilityMode {
+  INHERIT
+  OVERRIDE
+}
+
+model Group {
+  id        String   @id @default(uuid())
+  slug      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        UserGroup[]
+  articleLinks ArticleGroup[]
+  pageLinks    PageGroup[]
+  mediaLinks   MediaGroup[]
+}
+
+model UserGroup {
+  userId    String
+  groupId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, groupId])
+  @@index([groupId])
+}
+
+model ArticleGroup {
+  articleId String
+  groupId   String
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, groupId])
+  @@index([groupId])
+}
+
+model PageGroup {
+  pageId  String
+  groupId String
+
+  page  Page  @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([pageId, groupId])
+  @@index([groupId])
+}
+
+model MediaGroup {
+  mediaId String
+  groupId String
+
+  media Media @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([mediaId, groupId])
+  @@index([groupId])
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Photo Story App
+model AppInstance {
+  id          String   @id @default(uuid())
+  type        AppType  @default(PHOTO_STORY)
+  slug        String   @unique
+  name        String
+  description String?
+  config      Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  photoPosts  PhotoPost[]
+  tags        PhotoTag[]
+  appComments AppComment[]
+}
+
+enum AppType {
+  PHOTO_STORY
+  ECONOMIC_REPORT
+}
+
+model PhotoPost {
+  id            String   @id @default(uuid())
+  appInstanceId String
+  appInstance   AppInstance @relation(fields: [appInstanceId], references: [id], onDelete: Cascade)
+
+  mediaId       String
+  media         Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  title         String?
+  description   String?  @db.Text
+  location      String?
+  takenAt       DateTime?
+
+  comments      PhotoComment[]
+  essays        PhotoEssay[]
+  tags          PhotoTagAssignment[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([appInstanceId])
+  @@index([mediaId])
+  @@index([createdAt])
+}
+
+model PhotoTag {
+  id            String   @id @default(uuid())
+  name          String
+  appInstanceId String
+  appInstance   AppInstance @relation(fields: [appInstanceId], references: [id], onDelete: Cascade)
+  posts         PhotoTagAssignment[]
+
+  @@unique([appInstanceId, name])
+}
+
+model PhotoTagAssignment {
+  postId    String
+  post      PhotoPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       PhotoTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+}
+
+model PhotoComment {
+  id        String   @id @default(uuid())
+  content   String
+  isBlocked Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      PhotoPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  reports   PhotoCommentReport[]
+
+  @@index([postId])
+  @@index([userId])
+}
+
+model PhotoEssay {
+  id        String   @id @default(uuid())
+  title     String?
+  content   String   @db.Text
+  isBlocked Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      PhotoPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  reports   PhotoEssayReport[]
+
+  @@index([postId])
+  @@index([userId])
+}
+
+model PhotoCommentReport {
+  id         String   @id @default(uuid())
+  commentId  String
+  comment    PhotoComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  reporterId String
+  reporter   User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@unique([commentId, reporterId])
+  @@index([reporterId])
+}
+
+model PhotoEssayReport {
+  id         String   @id @default(uuid())
+  essayId    String
+  essay      PhotoEssay @relation(fields: [essayId], references: [id], onDelete: Cascade)
+  reporterId String
+  reporter   User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@unique([essayId, reporterId])
+  @@index([reporterId])
+}
